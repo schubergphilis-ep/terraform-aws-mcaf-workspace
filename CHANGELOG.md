@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## v4.1.1 - 2026-06-29
+
+### What's Changed
+
+#### 🐛 Bug Fixes
+
+* fix: Organisation is mandatory when used with OIDC (#85) @fatbasstard
+
+**Full Changelog**: https://github.com/schubergphilis/terraform-aws-mcaf-workspace/compare/v4.1.0...v4.1.1
+
 ## v4.1.0 - 2026-04-16
 
 ### What's Changed
