@@ -8,7 +8,7 @@ locals {
 ################################################################################
 
 module "tfe-workspace" {
-  source  = "schubergphilis/mcaf-workspace/tfe"
+  source  = "schubergphilis-ep/mcaf-workspace/tfe"
   version = "~> 3.0.0"
 
   name                                         = var.name

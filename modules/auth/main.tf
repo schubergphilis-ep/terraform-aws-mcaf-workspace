@@ -9,7 +9,7 @@ locals {
 module "workspace_iam_user" {
   count = var.auth_method == "iam_user" ? 1 : 0
 
-  source  = "schubergphilis/mcaf-user/aws"
+  source  = "schubergphilis-ep/mcaf-user/aws"
   version = "~> 0.4.0"
 
   name                 = var.username
@@ -53,7 +53,7 @@ resource "random_uuid" "external_id" {
 module "workspace_iam_role" {
   count = var.auth_method == "iam_role" ? 1 : 0
 
-  source  = "schubergphilis/mcaf-role/aws"
+  source  = "schubergphilis-ep/mcaf-role/aws"
   version = "~> 0.4.0"
 
   name                 = var.role_name
@@ -101,7 +101,7 @@ data "tfe_organization" "default" {
 module "workspace_iam_role_oidc" {
   count = local.enable_oidc ? 1 : 0
 
-  source  = "schubergphilis/mcaf-role/aws"
+  source  = "schubergphilis-ep/mcaf-role/aws"
   version = "~> 0.5.3"
 
   name                 = var.role_name
