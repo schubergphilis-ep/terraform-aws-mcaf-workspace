@@ -80,7 +80,7 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_auth"></a> [auth](#module\_auth) | ./modules/auth | n/a |
-| <a name="module_tfe-workspace"></a> [tfe-workspace](#module\_tfe-workspace) | schubergphilis/mcaf-workspace/tfe | ~> 3.0.0 |
+| <a name="module_tfe-workspace"></a> [tfe-workspace](#module\_tfe-workspace) | schubergphilis-ep/mcaf-workspace/tfe | ~> 3.0.0 |
 
 ## Resources
 
