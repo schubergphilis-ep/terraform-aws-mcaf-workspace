@@ -110,5 +110,6 @@ module "auth" {
     oidc_workspace_filter = local.oidc_workspace_filter
     provider_arn          = var.oidc_settings.provider_arn
     site_address          = var.oidc_settings.site_address
+    roles                 = var.oidc_settings.roles
   } : null
 }

@@ -20,6 +20,38 @@ The module supports three authentication methods for Terraform Cloud to access A
 - Native integration with Terraform Cloud workload identity
 - Automatic temporary credential issuance for each run
 
+#### Separate Plan and Apply Roles
+
+By default the OIDC method creates a single IAM role that Terraform Cloud assumes for both the plan
+and apply phases (published to the workspace as `TFC_AWS_RUN_ROLE_ARN`).
+
+Setting `oidc_settings.roles` switches to two roles instead — a read-only plan role and a read-write
+apply role — published as `TFC_AWS_PLAN_ROLE_ARN` and `TFC_AWS_APPLY_ROLE_ARN`. Each role's trust
+policy is scoped to its run phase (`run_phase:plan` / `run_phase:apply`), so AWS refuses to let the
+plan role be assumed during an apply and vice versa. This enables least-privilege separation: grant
+the plan role read-only permissions and reserve write permissions for the apply role.
+
+Each phase's `policy`, `policy_arns`, `permissions_boundary_arn`, and `role_name` fall back to the
+shared top-level `var.*` value when omitted. When a phase's `role_name` is not set, it defaults to
+the top-level `role_name` suffixed with `-plan` / `-apply`, so `role_name` (or both per-phase
+`role_name` values) must be set when using separate roles.
+
+```hcl
+role_name = "my-workspace" # role names become "my-workspace-plan" / "my-workspace-apply"
+
+oidc_settings = {
+  provider_arn = aws_iam_openid_connect_provider.tfc_provider.arn
+
+  roles = {
+    plan  = { policy_arns = ["arn:aws:iam::aws:policy/ReadOnlyAccess"] }
+    apply = { policy = data.aws_iam_policy_document.apply.json }
+  }
+}
+```
+
+See the [`oidc-separate-roles`](examples/oidc-separate-roles) example. This is opt-in — leaving
+`oidc_settings.roles` unset preserves the single-role (`TFC_AWS_RUN_ROLE_ARN`) behaviour.
+
 #### Disabling Authentication
 
 Authentication can be disabled by setting `enable_authentication = false`. This is useful when authentication is managed at the Terraform Cloud project level or AWS credentials are provided externally via variable sets.
@@ -63,7 +95,7 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 4.0.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0 |
@@ -72,28 +104,27 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_tfe"></a> [tfe](#provider\_tfe) | >= 0.67.1 |
+| ---- | ------- |
+| <a name="provider_tfe"></a> [tfe](#provider\_tfe) | 0.79.0 |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_auth"></a> [auth](#module\_auth) | ./modules/auth | n/a |
 | <a name="module_tfe-workspace"></a> [tfe-workspace](#module\_tfe-workspace) | schubergphilis-ep/mcaf-workspace/tfe | ~> 3.0.0 |
 
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [tfe_team_access.default](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/team_access) | resource |
 | [tfe_team.default](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/data-sources/team) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| <a name="input_name"></a> [name](#input\_name) | A name for the Terraform workspace | `string` | n/a | yes |
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_agent_pool_id"></a> [agent\_pool\_id](#input\_agent\_pool\_id) | Agent pool ID, requires "execution\_mode" to be set to agent | `string` | `null` | no |
 | <a name="input_agent_role_arns"></a> [agent\_role\_arns](#input\_agent\_role\_arns) | IAM role ARNs used by Terraform Cloud Agent to assume role in the created account | `list(string)` | `null` | no |
 | <a name="input_allow_destroy_plan"></a> [allow\_destroy\_plan](#input\_allow\_destroy\_plan) | Whether destroy plans can be queued on the workspace | `bool` | `true` | no |
@@ -114,9 +145,10 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 | <a name="input_force_delete"></a> [force\_delete](#input\_force\_delete) | If true, the workspace will be force deleted even when resources are still under management | `bool` | `false` | no |
 | <a name="input_github_app_installation_id"></a> [github\_app\_installation\_id](#input\_github\_app\_installation\_id) | The GitHub App installation ID to use | `string` | `null` | no |
 | <a name="input_global_remote_state"></a> [global\_remote\_state](#input\_global\_remote\_state) | Allow all workspaces in the organization to read the state of this workspace | `bool` | `null` | no |
+| <a name="input_name"></a> [name](#input\_name) | A name for the Terraform workspace | `string` | n/a | yes |
 | <a name="input_notification_configuration"></a> [notification\_configuration](#input\_notification\_configuration) | Notification configuration, using name as key and config as value | <pre>map(object({<br/>    destination_type = string<br/>    enabled          = optional(bool, true)<br/>    url              = string<br/>    triggers = optional(list(string), [<br/>      "run:created",<br/>      "run:planning",<br/>      "run:needs_attention",<br/>      "run:applying",<br/>      "run:completed",<br/>      "run:errored",<br/>    ])<br/>  }))</pre> | `{}` | no |
 | <a name="input_oauth_token_id"></a> [oauth\_token\_id](#input\_oauth\_token\_id) | The OAuth token ID of the VCS provider | `string` | `null` | no |
-| <a name="input_oidc_settings"></a> [oidc\_settings](#input\_oidc\_settings) | OIDC settings to use if "auth\_method" is set to "iam\_role\_oidc" | <pre>object({<br/>    audience     = optional(string, "aws.workload.identity")<br/>    project_name = optional(string)<br/>    # Apply OIDC trust to all workspaces in the project instead of just this workspace.<br/>    # WARNING: Only enable this setting when the project relates to a single AWS Account to avoid unintended access.<br/>    project_scope = optional(bool, false)<br/>    provider_arn  = string<br/>    site_address  = optional(string, "app.terraform.io")<br/>  })</pre> | `null` | no |
+| <a name="input_oidc_settings"></a> [oidc\_settings](#input\_oidc\_settings) | OIDC settings to use if "auth\_method" is set to "iam\_role\_oidc" | <pre>object({<br/>    audience     = optional(string, "aws.workload.identity")<br/>    project_name = optional(string)<br/>    # Apply OIDC trust to all workspaces in the project instead of just this workspace.<br/>    # WARNING: Only enable this setting when the project relates to a single AWS Account to avoid unintended access.<br/>    project_scope = optional(bool, false)<br/>    provider_arn  = string<br/>    site_address  = optional(string, "app.terraform.io")<br/>    # When set, creates separate plan and apply roles (published as TFC_AWS_PLAN_ROLE_ARN and<br/>    # TFC_AWS_APPLY_ROLE_ARN) instead of a single run role (TFC_AWS_RUN_ROLE_ARN). Each phase's<br/>    # policy/policy_arns/permissions_boundary_arn/role_name falls back to the top-level var.* value<br/>    # when omitted. Set "roles = {}" to enable split roles that both inherit the shared policy config.<br/>    roles = optional(object({<br/>      plan = optional(object({<br/>        policy                   = optional(string)<br/>        policy_arns              = optional(set(string))<br/>        permissions_boundary_arn = optional(string)<br/>        role_name                = optional(string)<br/>      }), {})<br/>      apply = optional(object({<br/>        policy                   = optional(string)<br/>        policy_arns              = optional(set(string))<br/>        permissions_boundary_arn = optional(string)<br/>        role_name                = optional(string)<br/>      }), {})<br/>    }))<br/>  })</pre> | `null` | no |
 | <a name="input_path"></a> [path](#input\_path) | Path in which to create the IAM role or user | `string` | `"/"` | no |
 | <a name="input_permissions_boundary_arn"></a> [permissions\_boundary\_arn](#input\_permissions\_boundary\_arn) | ARN of the policy that is used to set the permissions boundary for the IAM role or IAM user | `string` | `null` | no |
 | <a name="input_policy"></a> [policy](#input\_policy) | The policy to attach to the pipeline role or user | `string` | `null` | no |
@@ -148,10 +180,12 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_arn"></a> [arn](#output\_arn) | The workspace IAM user ARN |
 | <a name="output_iam_role_arn"></a> [iam\_role\_arn](#output\_iam\_role\_arn) | ARN of the IAM role (if auth\_method is iam\_role) |
-| <a name="output_iam_role_oidc_arn"></a> [iam\_role\_oidc\_arn](#output\_iam\_role\_oidc\_arn) | ARN of the IAM role for OIDC (if auth\_method is iam\_role\_oidc) |
+| <a name="output_iam_role_oidc_apply_arn"></a> [iam\_role\_oidc\_apply\_arn](#output\_iam\_role\_oidc\_apply\_arn) | ARN of the apply IAM role for OIDC (if auth\_method is iam\_role\_oidc and oidc\_settings.roles is set) |
+| <a name="output_iam_role_oidc_arn"></a> [iam\_role\_oidc\_arn](#output\_iam\_role\_oidc\_arn) | ARN of the single IAM role for OIDC (if auth\_method is iam\_role\_oidc and oidc\_settings.roles is not set) |
+| <a name="output_iam_role_oidc_plan_arn"></a> [iam\_role\_oidc\_plan\_arn](#output\_iam\_role\_oidc\_plan\_arn) | ARN of the plan IAM role for OIDC (if auth\_method is iam\_role\_oidc and oidc\_settings.roles is set) |
 | <a name="output_iam_user_arn"></a> [iam\_user\_arn](#output\_iam\_user\_arn) | ARN of the IAM user (if auth\_method is iam\_user) |
 | <a name="output_workspace_id"></a> [workspace\_id](#output\_workspace\_id) | The Terraform Cloud workspace ID |
 | <a name="output_workspace_name"></a> [workspace\_name](#output\_workspace\_name) | The Terraform Cloud workspace name |

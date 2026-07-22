@@ -14,8 +14,18 @@ output "iam_role_arn" {
 }
 
 output "iam_role_oidc_arn" {
-  description = "ARN of the IAM role for OIDC (if auth_method is iam_role_oidc)"
+  description = "ARN of the single IAM role for OIDC (if auth_method is iam_role_oidc and oidc_settings.roles is not set)"
   value       = try(module.auth[0].iam_role_oidc_arn, null)
+}
+
+output "iam_role_oidc_plan_arn" {
+  description = "ARN of the plan IAM role for OIDC (if auth_method is iam_role_oidc and oidc_settings.roles is set)"
+  value       = try(module.auth[0].iam_role_oidc_plan_arn, null)
+}
+
+output "iam_role_oidc_apply_arn" {
+  description = "ARN of the apply IAM role for OIDC (if auth_method is iam_role_oidc and oidc_settings.roles is set)"
+  value       = try(module.auth[0].iam_role_oidc_apply_arn, null)
 }
 
 output "workspace_name" {

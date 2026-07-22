@@ -22,6 +22,22 @@ variable "oidc_settings" {
     oidc_workspace_filter = string
     provider_arn          = string
     site_address          = optional(string, "app.terraform.io")
+    # When set, creates separate plan and apply roles instead of a single run role. Each phase's
+    # policy/policy_arns/permissions_boundary_arn/role_name falls back to the top-level var.* value.
+    roles = optional(object({
+      plan = optional(object({
+        policy                   = optional(string)
+        policy_arns              = optional(set(string))
+        permissions_boundary_arn = optional(string)
+        role_name                = optional(string)
+      }), {})
+      apply = optional(object({
+        policy                   = optional(string)
+        policy_arns              = optional(set(string))
+        permissions_boundary_arn = optional(string)
+        role_name                = optional(string)
+      }), {})
+    }))
   })
   default     = null
   description = "OIDC settings to use if \"auth_method\" is set to \"iam_role_oidc\""

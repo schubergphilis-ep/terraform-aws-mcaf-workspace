@@ -167,6 +167,24 @@ variable "oidc_settings" {
     project_scope = optional(bool, false)
     provider_arn  = string
     site_address  = optional(string, "app.terraform.io")
+    # When set, creates separate plan and apply roles (published as TFC_AWS_PLAN_ROLE_ARN and
+    # TFC_AWS_APPLY_ROLE_ARN) instead of a single run role (TFC_AWS_RUN_ROLE_ARN). Each phase's
+    # policy/policy_arns/permissions_boundary_arn/role_name falls back to the top-level var.* value
+    # when omitted. Set "roles = {}" to enable split roles that both inherit the shared policy config.
+    roles = optional(object({
+      plan = optional(object({
+        policy                   = optional(string)
+        policy_arns              = optional(set(string))
+        permissions_boundary_arn = optional(string)
+        role_name                = optional(string)
+      }), {})
+      apply = optional(object({
+        policy                   = optional(string)
+        policy_arns              = optional(set(string))
+        permissions_boundary_arn = optional(string)
+        role_name                = optional(string)
+      }), {})
+    }))
   })
   default     = null
   description = "OIDC settings to use if \"auth_method\" is set to \"iam_role_oidc\""
@@ -174,6 +192,16 @@ variable "oidc_settings" {
   validation {
     condition     = var.oidc_settings == null || !var.oidc_settings.project_scope || var.oidc_settings.project_name != null
     error_message = "\"project_name\" must be set in \"oidc_settings\" when \"project_scope\" is enabled."
+  }
+
+  validation {
+    condition     = try(var.oidc_settings.roles, null) == null || try(var.oidc_settings.roles.plan.role_name, null) == null || try(var.oidc_settings.roles.apply.role_name, null) == null || var.oidc_settings.roles.plan.role_name != var.oidc_settings.roles.apply.role_name
+    error_message = "\"roles.plan.role_name\" and \"roles.apply.role_name\" must differ to avoid an IAM role name collision."
+  }
+
+  validation {
+    condition     = try(var.oidc_settings.roles, null) == null || var.role_name != null || (try(var.oidc_settings.roles.plan.role_name, null) != null && try(var.oidc_settings.roles.apply.role_name, null) != null)
+    error_message = "When \"oidc_settings.roles\" is set, either \"role_name\" must be set (used as \"<role_name>-plan\" / \"<role_name>-apply\") or both \"roles.plan.role_name\" and \"roles.apply.role_name\" must be set."
   }
 }
 

@@ -2,7 +2,7 @@
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 4.0.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0 |
@@ -11,27 +11,31 @@
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0 |
 | <a name="provider_tfe"></a> [tfe](#provider\_tfe) | >= 0.67.1 |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_workspace_iam_role"></a> [workspace\_iam\_role](#module\_workspace\_iam\_role) | schubergphilis-ep/mcaf-role/aws | ~> 0.4.0 |
 | <a name="module_workspace_iam_role_oidc"></a> [workspace\_iam\_role\_oidc](#module\_workspace\_iam\_role\_oidc) | schubergphilis-ep/mcaf-role/aws | ~> 0.5.3 |
+| <a name="module_workspace_iam_role_oidc_apply"></a> [workspace\_iam\_role\_oidc\_apply](#module\_workspace\_iam\_role\_oidc\_apply) | schubergphilis-ep/mcaf-role/aws | ~> 0.5.3 |
+| <a name="module_workspace_iam_role_oidc_plan"></a> [workspace\_iam\_role\_oidc\_plan](#module\_workspace\_iam\_role\_oidc\_plan) | schubergphilis-ep/mcaf-role/aws | ~> 0.5.3 |
 | <a name="module_workspace_iam_user"></a> [workspace\_iam\_user](#module\_workspace\_iam\_user) | schubergphilis-ep/mcaf-user/aws | ~> 0.4.0 |
 
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [random_uuid.external_id](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) | resource |
 | [tfe_variable.aws_access_key_id](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/variable) | resource |
 | [tfe_variable.aws_assume_role](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/variable) | resource |
 | [tfe_variable.aws_assume_role_external_id](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/variable) | resource |
 | [tfe_variable.aws_secret_access_key](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/variable) | resource |
+| [tfe_variable.tfc_aws_apply_role_arn](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/variable) | resource |
+| [tfe_variable.tfc_aws_plan_role_arn](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/variable) | resource |
 | [tfe_variable.tfc_aws_provider_auth](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/variable) | resource |
 | [tfe_variable.tfc_aws_run_role_arn](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/variable) | resource |
 | [tfe_variable.tfc_aws_workload_identity_audience](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/variable) | resource |
@@ -40,10 +44,10 @@
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_agent_role_arns"></a> [agent\_role\_arns](#input\_agent\_role\_arns) | IAM role ARNs used by Terraform Cloud Agent to assume role in the created account | `list(string)` | `null` | no |
 | <a name="input_auth_method"></a> [auth\_method](#input\_auth\_method) | Configures how the workspace authenticates with the AWS account (can be iam\_user, iam\_role, or iam\_role\_oidc) | `string` | `"iam_role_oidc"` | no |
-| <a name="input_oidc_settings"></a> [oidc\_settings](#input\_oidc\_settings) | OIDC settings to use if "auth\_method" is set to "iam\_role\_oidc" | <pre>object({<br/>    audience              = optional(string, "aws.workload.identity")<br/>    oidc_project_filter   = optional(string, "*")<br/>    oidc_workspace_filter = string<br/>    provider_arn          = string<br/>    site_address          = optional(string, "app.terraform.io")<br/>  })</pre> | `null` | no |
+| <a name="input_oidc_settings"></a> [oidc\_settings](#input\_oidc\_settings) | OIDC settings to use if "auth\_method" is set to "iam\_role\_oidc" | <pre>object({<br/>    audience              = optional(string, "aws.workload.identity")<br/>    oidc_project_filter   = optional(string, "*")<br/>    oidc_workspace_filter = string<br/>    provider_arn          = string<br/>    site_address          = optional(string, "app.terraform.io")<br/>    # When set, creates separate plan and apply roles instead of a single run role. Each phase's<br/>    # policy/policy_arns/permissions_boundary_arn/role_name falls back to the top-level var.* value.<br/>    roles = optional(object({<br/>      plan = optional(object({<br/>        policy                   = optional(string)<br/>        policy_arns              = optional(set(string))<br/>        permissions_boundary_arn = optional(string)<br/>        role_name                = optional(string)<br/>      }), {})<br/>      apply = optional(object({<br/>        policy                   = optional(string)<br/>        policy_arns              = optional(set(string))<br/>        permissions_boundary_arn = optional(string)<br/>        role_name                = optional(string)<br/>      }), {})<br/>    }))<br/>  })</pre> | `null` | no |
 | <a name="input_path"></a> [path](#input\_path) | Path in which to create the IAM role or user | `string` | `"/"` | no |
 | <a name="input_permissions_boundary_arn"></a> [permissions\_boundary\_arn](#input\_permissions\_boundary\_arn) | ARN of the policy that is used to set the permissions boundary for the IAM role or IAM user | `string` | `null` | no |
 | <a name="input_policy"></a> [policy](#input\_policy) | The policy to attach to the pipeline role or user | `string` | `null` | no |
@@ -59,8 +63,10 @@
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_iam_role_arn"></a> [iam\_role\_arn](#output\_iam\_role\_arn) | ARN of the IAM role (if auth\_method is iam\_role) |
-| <a name="output_iam_role_oidc_arn"></a> [iam\_role\_oidc\_arn](#output\_iam\_role\_oidc\_arn) | ARN of the IAM role for OIDC (if auth\_method is iam\_role\_oidc) |
+| <a name="output_iam_role_oidc_apply_arn"></a> [iam\_role\_oidc\_apply\_arn](#output\_iam\_role\_oidc\_apply\_arn) | ARN of the apply IAM role for OIDC (if auth\_method is iam\_role\_oidc and oidc\_settings.roles is set) |
+| <a name="output_iam_role_oidc_arn"></a> [iam\_role\_oidc\_arn](#output\_iam\_role\_oidc\_arn) | ARN of the single IAM role for OIDC (if auth\_method is iam\_role\_oidc and oidc\_settings.roles is not set) |
+| <a name="output_iam_role_oidc_plan_arn"></a> [iam\_role\_oidc\_plan\_arn](#output\_iam\_role\_oidc\_plan\_arn) | ARN of the plan IAM role for OIDC (if auth\_method is iam\_role\_oidc and oidc\_settings.roles is set) |
 | <a name="output_iam_user_arn"></a> [iam\_user\_arn](#output\_iam\_user\_arn) | ARN of the IAM user (if auth\_method is iam\_user) |
 <!-- END_TF_DOCS -->

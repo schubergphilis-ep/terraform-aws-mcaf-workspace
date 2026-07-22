@@ -1,5 +1,24 @@
 locals {
-  enable_oidc = var.auth_method == "iam_role_oidc" && var.oidc_settings != null
+  enable_oidc        = var.auth_method == "iam_role_oidc" && var.oidc_settings != null
+  enable_oidc_split  = local.enable_oidc && try(var.oidc_settings.roles, null) != null
+  enable_oidc_single = local.enable_oidc && !local.enable_oidc_split
+
+  # Per-phase role configuration; each field falls back to the shared top-level value when omitted.
+  # The role name falls back to "<role_name>-plan" / "<role_name>-apply" (root module validates that
+  # role_name is set when no explicit per-phase role_name is given).
+  oidc_plan_role = local.enable_oidc_split ? {
+    policy                   = var.oidc_settings.roles.plan.policy != null ? var.oidc_settings.roles.plan.policy : var.policy
+    policy_arns              = var.oidc_settings.roles.plan.policy_arns != null ? var.oidc_settings.roles.plan.policy_arns : var.policy_arns
+    permissions_boundary_arn = var.oidc_settings.roles.plan.permissions_boundary_arn != null ? var.oidc_settings.roles.plan.permissions_boundary_arn : var.permissions_boundary_arn
+    role_name                = var.oidc_settings.roles.plan.role_name != null ? var.oidc_settings.roles.plan.role_name : "${var.role_name}-plan"
+  } : null
+
+  oidc_apply_role = local.enable_oidc_split ? {
+    policy                   = var.oidc_settings.roles.apply.policy != null ? var.oidc_settings.roles.apply.policy : var.policy
+    policy_arns              = var.oidc_settings.roles.apply.policy_arns != null ? var.oidc_settings.roles.apply.policy_arns : var.policy_arns
+    permissions_boundary_arn = var.oidc_settings.roles.apply.permissions_boundary_arn != null ? var.oidc_settings.roles.apply.permissions_boundary_arn : var.permissions_boundary_arn
+    role_name                = var.oidc_settings.roles.apply.role_name != null ? var.oidc_settings.roles.apply.role_name : "${var.role_name}-apply"
+  } : null
 }
 
 ################################################################################
@@ -98,8 +117,9 @@ data "tfe_organization" "default" {
   count = local.enable_oidc ? 1 : 0
 }
 
+# Single role: assumable in both the plan and apply phases (published as TFC_AWS_RUN_ROLE_ARN).
 module "workspace_iam_role_oidc" {
-  count = local.enable_oidc ? 1 : 0
+  count = local.enable_oidc_single ? 1 : 0
 
   source  = "schubergphilis-ep/mcaf-role/aws"
   version = "~> 0.5.3"
@@ -117,6 +137,59 @@ module "workspace_iam_role_oidc" {
     org_name         = var.terraform_organization != null ? var.terraform_organization : data.tfe_organization.default[0].name,
     project_filter   = var.oidc_settings.oidc_project_filter,
     provider_arn     = var.oidc_settings.provider_arn,
+    run_phase        = "*",
+    site_address     = var.oidc_settings.site_address,
+    workspace_filter = var.oidc_settings.oidc_workspace_filter,
+  })
+}
+
+# Separate plan role: assumable only during the plan phase (published as TFC_AWS_PLAN_ROLE_ARN).
+module "workspace_iam_role_oidc_plan" {
+  count = local.enable_oidc_split ? 1 : 0
+
+  source  = "schubergphilis-ep/mcaf-role/aws"
+  version = "~> 0.5.3"
+
+  name                 = local.oidc_plan_role.role_name
+  path                 = var.path
+  permissions_boundary = local.oidc_plan_role.permissions_boundary_arn
+  policy_arns          = local.oidc_plan_role.policy_arns
+  postfix              = var.postfix
+  role_policy          = local.oidc_plan_role.policy
+  tags                 = var.tags
+
+  assume_policy = templatefile("${path.module}/templates/assume_role_policy_oidc.tftpl", {
+    audience         = var.oidc_settings.audience,
+    org_name         = var.terraform_organization != null ? var.terraform_organization : data.tfe_organization.default[0].name,
+    project_filter   = var.oidc_settings.oidc_project_filter,
+    provider_arn     = var.oidc_settings.provider_arn,
+    run_phase        = "plan",
+    site_address     = var.oidc_settings.site_address,
+    workspace_filter = var.oidc_settings.oidc_workspace_filter,
+  })
+}
+
+# Separate apply role: assumable only during the apply phase (published as TFC_AWS_APPLY_ROLE_ARN).
+module "workspace_iam_role_oidc_apply" {
+  count = local.enable_oidc_split ? 1 : 0
+
+  source  = "schubergphilis-ep/mcaf-role/aws"
+  version = "~> 0.5.3"
+
+  name                 = local.oidc_apply_role.role_name
+  path                 = var.path
+  permissions_boundary = local.oidc_apply_role.permissions_boundary_arn
+  policy_arns          = local.oidc_apply_role.policy_arns
+  postfix              = var.postfix
+  role_policy          = local.oidc_apply_role.policy
+  tags                 = var.tags
+
+  assume_policy = templatefile("${path.module}/templates/assume_role_policy_oidc.tftpl", {
+    audience         = var.oidc_settings.audience,
+    org_name         = var.terraform_organization != null ? var.terraform_organization : data.tfe_organization.default[0].name,
+    project_filter   = var.oidc_settings.oidc_project_filter,
+    provider_arn     = var.oidc_settings.provider_arn,
+    run_phase        = "apply",
     site_address     = var.oidc_settings.site_address,
     workspace_filter = var.oidc_settings.oidc_workspace_filter,
   })
@@ -133,10 +206,30 @@ resource "tfe_variable" "tfc_aws_provider_auth" {
 }
 
 resource "tfe_variable" "tfc_aws_run_role_arn" {
-  count = local.enable_oidc ? 1 : 0
+  count = local.enable_oidc_single ? 1 : 0
 
   key             = "TFC_AWS_RUN_ROLE_ARN"
   value           = module.workspace_iam_role_oidc[0].arn
+  category        = "env"
+  variable_set_id = var.variable_set_id
+  workspace_id    = var.workspace_id
+}
+
+resource "tfe_variable" "tfc_aws_plan_role_arn" {
+  count = local.enable_oidc_split ? 1 : 0
+
+  key             = "TFC_AWS_PLAN_ROLE_ARN"
+  value           = module.workspace_iam_role_oidc_plan[0].arn
+  category        = "env"
+  variable_set_id = var.variable_set_id
+  workspace_id    = var.workspace_id
+}
+
+resource "tfe_variable" "tfc_aws_apply_role_arn" {
+  count = local.enable_oidc_split ? 1 : 0
+
+  key             = "TFC_AWS_APPLY_ROLE_ARN"
+  value           = module.workspace_iam_role_oidc_apply[0].arn
   category        = "env"
   variable_set_id = var.variable_set_id
   workspace_id    = var.workspace_id
