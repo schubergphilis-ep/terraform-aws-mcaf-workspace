@@ -4,12 +4,6 @@ variable "agent_pool_id" {
   description = "Agent pool ID, requires \"execution_mode\" to be set to agent"
 }
 
-variable "agent_role_arns" {
-  type        = list(string)
-  default     = null
-  description = "IAM role ARNs used by Terraform Cloud Agent to assume role in the created account"
-}
-
 variable "allow_destroy_plan" {
   type        = bool
   default     = true
@@ -20,12 +14,6 @@ variable "assessments_enabled" {
   type        = bool
   default     = true
   description = "Whether to regularly run health assessments such as drift detection on the workspace"
-}
-
-variable "auth_method" {
-  type        = string
-  default     = "iam_role_oidc"
-  description = "Configures how the workspace authenticates with the AWS account (can be iam_user, iam_role, or iam_role_oidc)"
 }
 
 variable "auto_apply" {
@@ -85,7 +73,7 @@ variable "description" {
 variable "enable_authentication" {
   type        = bool
   default     = true
-  description = "Whether to create and configure AWS IAM credentials (user or role) for the workspace to authenticate with AWS using the specified auth_method"
+  description = "Whether to create and configure AWS IAM credentials for the workspace to authenticate with AWS"
 }
 
 variable "execution_mode" {
@@ -169,42 +157,47 @@ variable "oidc_settings" {
     site_address  = optional(string, "app.terraform.io")
   })
   default     = null
-  description = "OIDC settings to use if \"auth_method\" is set to \"iam_role_oidc\""
+  description = "OIDC settings to use for authentication between TFE workspace and AWS IAM role"
 
   validation {
     condition     = var.oidc_settings == null || !var.oidc_settings.project_scope || var.oidc_settings.project_name != null
     error_message = "\"project_name\" must be set in \"oidc_settings\" when \"project_scope\" is enabled."
+  }
+
+  validation {
+    condition     = !var.enable_authentication || var.oidc_settings != null
+    error_message = "\"oidc_settings\" must be set when \"enable_authentication\" is enabled."
   }
 }
 
 variable "path" {
   type        = string
   default     = "/"
-  description = "Path in which to create the IAM role or user"
+  description = "Path in which to create the IAM role"
 }
 
 variable "permissions_boundary_arn" {
   type        = string
   default     = null
-  description = "ARN of the policy that is used to set the permissions boundary for the IAM role or IAM user"
+  description = "ARN of the policy that is used to set the permissions boundary for the IAM role"
 }
 
 variable "policy" {
   type        = string
   default     = null
-  description = "The policy to attach to the pipeline role or user"
+  description = "The policy to attach to the pipeline role"
 }
 
 variable "policy_arns" {
   type        = set(string)
   default     = []
-  description = "A set of policy ARNs to attach to the pipeline user"
+  description = "A set of policy ARNs to attach to the pipeline role"
 }
 
 variable "postfix" {
-  type        = string
+  type        = bool
   default     = true
-  description = "Whether to postfix the IAM resources with e.g. `User` and `Role`"
+  description = "Whether to postfix the IAM resources with `Role`"
 }
 
 variable "project_id" {
@@ -240,7 +233,7 @@ variable "repository_identifier" {
 variable "role_name" {
   type        = string
   default     = null
-  description = "The IAM role name for a new pipeline role"
+  description = "The IAM role name for a new pipeline role. Defaults to \"TFEPipeline\" followed by a PascalCase version of \"name\" when not set"
 }
 
 variable "sensitive_env_variables" {
@@ -326,12 +319,6 @@ variable "trigger_patterns_working_directory_recursive" {
   default     = false
   description = "If true, include all nested files in the working directory; if false, match only its root."
   nullable    = false
-}
-
-variable "username" {
-  type        = string
-  default     = null
-  description = "The username for a new pipeline user"
 }
 
 variable "variable_set_ids" {

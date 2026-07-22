@@ -1,20 +1,12 @@
 # terraform-aws-mcaf-workspace
 
-This module uses the terraform-tfe-mcaf-workspace module to create a Terraform Cloud workspace and extends the features to manage AWS resources. This is done by creating either a IAM user or role and adding those credentials to the workspace.
+This module uses the terraform-tfe-mcaf-workspace module to create a Terraform Cloud workspace and extends the features to manage AWS resources. This is done by creating an IAM role and configuring the workspace to authenticate with AWS using OIDC workload identity.
 
 ## Usage
 
 ### Authentication
 
-The module supports three authentication methods for Terraform Cloud to access AWS, configured via the `auth_method` variable:
-
-| Method | Description |
-| ------ | ----------- |
-| `iam_role_oidc` (default) | Creates an IAM role that Terraform Cloud assumes using OIDC workload identity (recommended) |
-| `iam_user` | Creates an IAM user with static credentials (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`) stored in Terraform Cloud |
-| `iam_role` | Creates an IAM role that Terraform Cloud assumes using static credentials and an external ID |
-
-#### Why OIDC is Recommended
+The module creates an IAM role that Terraform Cloud assumes using OIDC workload identity, configured via the `oidc_settings` variable. Benefits of using OIDC:
 
 - No long-lived credentials are stored or managed
 - Native integration with Terraform Cloud workload identity
