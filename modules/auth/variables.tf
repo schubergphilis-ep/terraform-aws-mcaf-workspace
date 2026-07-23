@@ -1,20 +1,3 @@
-variable "agent_role_arns" {
-  type        = list(string)
-  default     = null
-  description = "IAM role ARNs used by Terraform Cloud Agent to assume role in the created account"
-}
-
-variable "auth_method" {
-  type        = string
-  default     = "iam_role_oidc"
-  description = "Configures how the workspace authenticates with the AWS account (can be iam_user, iam_role, or iam_role_oidc)"
-
-  validation {
-    condition     = lower(var.auth_method) == "iam_user" || lower(var.auth_method) == "iam_role" || lower(var.auth_method) == "iam_role_oidc"
-    error_message = "The auth_method value must be either \"iam_user\", \"iam_role\", or \"iam_role_oidc\"."
-  }
-}
-
 variable "oidc_settings" {
   type = object({
     audience              = optional(string, "aws.workload.identity")
@@ -23,43 +6,41 @@ variable "oidc_settings" {
     provider_arn          = string
     site_address          = optional(string, "app.terraform.io")
   })
-  default     = null
-  description = "OIDC settings to use if \"auth_method\" is set to \"iam_role_oidc\""
+  description = "OIDC settings to use for authentication between TFE workspace and AWS IAM role"
 }
 
 variable "path" {
   type        = string
   default     = "/"
-  description = "Path in which to create the IAM role or user"
+  description = "Path in which to create the IAM role"
 }
 
 variable "permissions_boundary_arn" {
   type        = string
   default     = null
-  description = "ARN of the policy that is used to set the permissions boundary for the IAM role or IAM user"
+  description = "ARN of the policy that is used to set the permissions boundary for the IAM role"
 }
 
 variable "policy" {
   type        = string
   default     = null
-  description = "The policy to attach to the pipeline role or user"
+  description = "The policy to attach to the pipeline role"
 }
 
 variable "policy_arns" {
   type        = set(string)
   default     = []
-  description = "A set of policy ARNs to attach to the pipeline user"
+  description = "A set of policy ARNs to attach to the pipeline role"
 }
 
 variable "postfix" {
-  type        = string
+  type        = bool
   default     = true
-  description = "Whether to postfix the IAM resources with e.g. `User` and `Role`"
+  description = "Whether to postfix the IAM resources with `Role`"
 }
 
 variable "role_name" {
   type        = string
-  default     = null
   description = "The IAM role name for a new pipeline role"
 }
 
@@ -73,12 +54,6 @@ variable "terraform_organization" {
   type        = string
   default     = null
   description = "The Terraform Enterprise organization to create the workspace in. If omitted, organization must be defined in the provider config."
-}
-
-variable "username" {
-  type        = string
-  default     = null
-  description = "The username for a new pipeline user"
 }
 
 variable "workspace_id" {

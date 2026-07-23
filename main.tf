@@ -1,6 +1,7 @@
 locals {
   oidc_project_filter   = try(var.oidc_settings.project_scope, false) ? var.oidc_settings.project_name : "*"
   oidc_workspace_filter = !try(var.oidc_settings.project_scope, false) ? var.name : "*"
+  role_name             = coalesce(var.role_name, "TFEPipeline${replace(title(var.name), "/[_-]/", "")}")
 }
 
 ################################################################################
@@ -83,7 +84,7 @@ resource "tfe_team_access" "default" {
 }
 
 ################################################################################
-# Authentication TFE Workspace <> AWS IAM Role/User
+# Authentication TFE Workspace <> AWS IAM Role
 ################################################################################
 
 module "auth" {
@@ -91,17 +92,14 @@ module "auth" {
 
   source = "./modules/auth"
 
-  agent_role_arns          = var.agent_role_arns
-  auth_method              = var.auth_method
   path                     = var.path
   permissions_boundary_arn = var.permissions_boundary_arn
   policy                   = var.policy
   policy_arns              = var.policy_arns
   postfix                  = var.postfix
-  role_name                = var.role_name
+  role_name                = local.role_name
   tags                     = var.tags
   terraform_organization   = var.terraform_organization
-  username                 = var.username
   workspace_id             = module.tfe-workspace.workspace_id
 
   oidc_settings = var.oidc_settings != null ? {

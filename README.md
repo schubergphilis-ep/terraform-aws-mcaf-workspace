@@ -1,20 +1,12 @@
 # terraform-aws-mcaf-workspace
 
-This module uses the terraform-tfe-mcaf-workspace module to create a Terraform Cloud workspace and extends the features to manage AWS resources. This is done by creating either a IAM user or role and adding those credentials to the workspace.
+This module uses the terraform-tfe-mcaf-workspace module to create a Terraform Cloud workspace and extends the features to manage AWS resources. This is done by creating an IAM role and configuring the workspace to authenticate with AWS using OIDC workload identity.
 
 ## Usage
 
 ### Authentication
 
-The module supports three authentication methods for Terraform Cloud to access AWS, configured via the `auth_method` variable:
-
-| Method | Description |
-| ------ | ----------- |
-| `iam_role_oidc` (default) | Creates an IAM role that Terraform Cloud assumes using OIDC workload identity (recommended) |
-| `iam_user` | Creates an IAM user with static credentials (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`) stored in Terraform Cloud |
-| `iam_role` | Creates an IAM role that Terraform Cloud assumes using static credentials and an external ID |
-
-#### Why OIDC is Recommended
+The module creates an IAM role that Terraform Cloud assumes using OIDC workload identity, configured via the `oidc_settings` variable. Benefits of using OIDC:
 
 - No long-lived credentials are stored or managed
 - Native integration with Terraform Cloud workload identity
@@ -95,10 +87,8 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 |------|-------------|------|---------|:--------:|
 | <a name="input_name"></a> [name](#input\_name) | A name for the Terraform workspace | `string` | n/a | yes |
 | <a name="input_agent_pool_id"></a> [agent\_pool\_id](#input\_agent\_pool\_id) | Agent pool ID, requires "execution\_mode" to be set to agent | `string` | `null` | no |
-| <a name="input_agent_role_arns"></a> [agent\_role\_arns](#input\_agent\_role\_arns) | IAM role ARNs used by Terraform Cloud Agent to assume role in the created account | `list(string)` | `null` | no |
 | <a name="input_allow_destroy_plan"></a> [allow\_destroy\_plan](#input\_allow\_destroy\_plan) | Whether destroy plans can be queued on the workspace | `bool` | `true` | no |
 | <a name="input_assessments_enabled"></a> [assessments\_enabled](#input\_assessments\_enabled) | Whether to regularly run health assessments such as drift detection on the workspace | `bool` | `true` | no |
-| <a name="input_auth_method"></a> [auth\_method](#input\_auth\_method) | Configures how the workspace authenticates with the AWS account (can be iam\_user, iam\_role, or iam\_role\_oidc) | `string` | `"iam_role_oidc"` | no |
 | <a name="input_auto_apply"></a> [auto\_apply](#input\_auto\_apply) | Whether to automatically apply changes when a Terraform plan is successful | `bool` | `false` | no |
 | <a name="input_auto_apply_run_trigger"></a> [auto\_apply\_run\_trigger](#input\_auto\_apply\_run\_trigger) | Whether to automatically apply changes for runs that were created by run triggers from another workspace | `bool` | `false` | no |
 | <a name="input_auto_destroy_activity_duration"></a> [auto\_destroy\_activity\_duration](#input\_auto\_destroy\_activity\_duration) | Duration string (e.g. "7d") after last activity when an auto-destroy run should be queued for this workspace | `string` | `null` | no |
@@ -108,7 +98,7 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 | <a name="input_clear_text_hcl_variables"></a> [clear\_text\_hcl\_variables](#input\_clear\_text\_hcl\_variables) | An optional map with clear text HCL Terraform variables | `map(string)` | `{}` | no |
 | <a name="input_clear_text_terraform_variables"></a> [clear\_text\_terraform\_variables](#input\_clear\_text\_terraform\_variables) | An optional map with clear text Terraform variables | `map(string)` | `{}` | no |
 | <a name="input_description"></a> [description](#input\_description) | A description for the workspace | `string` | `null` | no |
-| <a name="input_enable_authentication"></a> [enable\_authentication](#input\_enable\_authentication) | Whether to create and configure AWS IAM credentials (user or role) for the workspace to authenticate with AWS using the specified auth\_method | `bool` | `true` | no |
+| <a name="input_enable_authentication"></a> [enable\_authentication](#input\_enable\_authentication) | Whether to create and configure AWS IAM credentials for the workspace to authenticate with AWS | `bool` | `true` | no |
 | <a name="input_execution_mode"></a> [execution\_mode](#input\_execution\_mode) | Which execution mode to use | `string` | `"remote"` | no |
 | <a name="input_file_triggers_enabled"></a> [file\_triggers\_enabled](#input\_file\_triggers\_enabled) | Whether to filter runs based on the changed files in a VCS push | `bool` | `true` | no |
 | <a name="input_force_delete"></a> [force\_delete](#input\_force\_delete) | If true, the workspace will be force deleted even when resources are still under management | `bool` | `false` | no |
@@ -116,18 +106,18 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 | <a name="input_global_remote_state"></a> [global\_remote\_state](#input\_global\_remote\_state) | Allow all workspaces in the organization to read the state of this workspace | `bool` | `null` | no |
 | <a name="input_notification_configuration"></a> [notification\_configuration](#input\_notification\_configuration) | Notification configuration, using name as key and config as value | <pre>map(object({<br/>    destination_type = string<br/>    enabled          = optional(bool, true)<br/>    url              = string<br/>    triggers = optional(list(string), [<br/>      "run:created",<br/>      "run:planning",<br/>      "run:needs_attention",<br/>      "run:applying",<br/>      "run:completed",<br/>      "run:errored",<br/>    ])<br/>  }))</pre> | `{}` | no |
 | <a name="input_oauth_token_id"></a> [oauth\_token\_id](#input\_oauth\_token\_id) | The OAuth token ID of the VCS provider | `string` | `null` | no |
-| <a name="input_oidc_settings"></a> [oidc\_settings](#input\_oidc\_settings) | OIDC settings to use if "auth\_method" is set to "iam\_role\_oidc" | <pre>object({<br/>    audience     = optional(string, "aws.workload.identity")<br/>    project_name = optional(string)<br/>    # Apply OIDC trust to all workspaces in the project instead of just this workspace.<br/>    # WARNING: Only enable this setting when the project relates to a single AWS Account to avoid unintended access.<br/>    project_scope = optional(bool, false)<br/>    provider_arn  = string<br/>    site_address  = optional(string, "app.terraform.io")<br/>  })</pre> | `null` | no |
-| <a name="input_path"></a> [path](#input\_path) | Path in which to create the IAM role or user | `string` | `"/"` | no |
-| <a name="input_permissions_boundary_arn"></a> [permissions\_boundary\_arn](#input\_permissions\_boundary\_arn) | ARN of the policy that is used to set the permissions boundary for the IAM role or IAM user | `string` | `null` | no |
-| <a name="input_policy"></a> [policy](#input\_policy) | The policy to attach to the pipeline role or user | `string` | `null` | no |
-| <a name="input_policy_arns"></a> [policy\_arns](#input\_policy\_arns) | A set of policy ARNs to attach to the pipeline user | `set(string)` | `[]` | no |
-| <a name="input_postfix"></a> [postfix](#input\_postfix) | Whether to postfix the IAM resources with e.g. `User` and `Role` | `string` | `true` | no |
+| <a name="input_oidc_settings"></a> [oidc\_settings](#input\_oidc\_settings) | OIDC settings to use for authentication between TFE workspace and AWS IAM role | <pre>object({<br/>    audience     = optional(string, "aws.workload.identity")<br/>    project_name = optional(string)<br/>    # Apply OIDC trust to all workspaces in the project instead of just this workspace.<br/>    # WARNING: Only enable this setting when the project relates to a single AWS Account to avoid unintended access.<br/>    project_scope = optional(bool, false)<br/>    provider_arn  = string<br/>    site_address  = optional(string, "app.terraform.io")<br/>  })</pre> | `null` | no |
+| <a name="input_path"></a> [path](#input\_path) | Path in which to create the IAM role | `string` | `"/"` | no |
+| <a name="input_permissions_boundary_arn"></a> [permissions\_boundary\_arn](#input\_permissions\_boundary\_arn) | ARN of the policy that is used to set the permissions boundary for the IAM role | `string` | `null` | no |
+| <a name="input_policy"></a> [policy](#input\_policy) | The policy to attach to the pipeline role | `string` | `null` | no |
+| <a name="input_policy_arns"></a> [policy\_arns](#input\_policy\_arns) | A set of policy ARNs to attach to the pipeline role | `set(string)` | `[]` | no |
+| <a name="input_postfix"></a> [postfix](#input\_postfix) | Whether to postfix the IAM resources with `Role` | `bool` | `true` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | ID of the TFE project where the workspace should be created | `string` | `null` | no |
 | <a name="input_queue_all_runs"></a> [queue\_all\_runs](#input\_queue\_all\_runs) | When set to false no initial run is queued and all runs triggered by a webhook will not be queued, necessary if you need to set variable sets after creation. | `bool` | `true` | no |
 | <a name="input_region"></a> [region](#input\_region) | The default region of the account | `string` | `null` | no |
 | <a name="input_remote_state_consumer_ids"></a> [remote\_state\_consumer\_ids](#input\_remote\_state\_consumer\_ids) | A set of workspace IDs set as explicit remote state consumers for this workspace | `set(string)` | `null` | no |
 | <a name="input_repository_identifier"></a> [repository\_identifier](#input\_repository\_identifier) | The repository identifier to connect the workspace to | `string` | `null` | no |
-| <a name="input_role_name"></a> [role\_name](#input\_role\_name) | The IAM role name for a new pipeline role | `string` | `null` | no |
+| <a name="input_role_name"></a> [role\_name](#input\_role\_name) | The IAM role name for a new pipeline role. Defaults to "TFEPipeline" followed by a PascalCase version of "name" when not set | `string` | `null` | no |
 | <a name="input_sensitive_env_variables"></a> [sensitive\_env\_variables](#input\_sensitive\_env\_variables) | An optional map with sensitive environment variables | `map(string)` | `{}` | no |
 | <a name="input_sensitive_hcl_variables"></a> [sensitive\_hcl\_variables](#input\_sensitive\_hcl\_variables) | An optional map with sensitive HCL Terraform variables | <pre>map(object({<br/>    sensitive = string<br/>  }))</pre> | `{}` | no |
 | <a name="input_sensitive_terraform_variables"></a> [sensitive\_terraform\_variables](#input\_sensitive\_terraform\_variables) | An optional map with sensitive Terraform variables | `map(string)` | `{}` | no |
@@ -139,7 +129,6 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 | <a name="input_terraform_version"></a> [terraform\_version](#input\_terraform\_version) | The version of Terraform to use for this workspace | `string` | `"latest"` | no |
 | <a name="input_trigger_patterns"></a> [trigger\_patterns](#input\_trigger\_patterns) | List of glob patterns that describe the files Terraform Cloud monitors for changes. Trigger patterns are always appended to the root directory of the repository. Mutually exclusive with trigger-prefixes | `list(string)` | <pre>[<br/>  "modules/**/*"<br/>]</pre> | no |
 | <a name="input_trigger_patterns_working_directory_recursive"></a> [trigger\_patterns\_working\_directory\_recursive](#input\_trigger\_patterns\_working\_directory\_recursive) | If true, include all nested files in the working directory; if false, match only its root. | `bool` | `false` | no |
-| <a name="input_username"></a> [username](#input\_username) | The username for a new pipeline user | `string` | `null` | no |
 | <a name="input_variable_set_ids"></a> [variable\_set\_ids](#input\_variable\_set\_ids) | Map of variable set ids to attach to the workspace | `map(string)` | `{}` | no |
 | <a name="input_variable_set_names"></a> [variable\_set\_names](#input\_variable\_set\_names) | Set of variable set names to attach to the workspace | `set(string)` | `[]` | no |
 | <a name="input_working_directory"></a> [working\_directory](#input\_working\_directory) | A relative path that Terraform will execute within | `string` | `"terraform"` | no |
@@ -149,10 +138,7 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 
 | Name | Description |
 |------|-------------|
-| <a name="output_arn"></a> [arn](#output\_arn) | The workspace IAM user ARN |
-| <a name="output_iam_role_arn"></a> [iam\_role\_arn](#output\_iam\_role\_arn) | ARN of the IAM role (if auth\_method is iam\_role) |
-| <a name="output_iam_role_oidc_arn"></a> [iam\_role\_oidc\_arn](#output\_iam\_role\_oidc\_arn) | ARN of the IAM role for OIDC (if auth\_method is iam\_role\_oidc) |
-| <a name="output_iam_user_arn"></a> [iam\_user\_arn](#output\_iam\_user\_arn) | ARN of the IAM user (if auth\_method is iam\_user) |
+| <a name="output_iam_role_arn"></a> [iam\_role\_arn](#output\_iam\_role\_arn) | ARN of the IAM role |
 | <a name="output_workspace_id"></a> [workspace\_id](#output\_workspace\_id) | The Terraform Cloud workspace ID |
 | <a name="output_workspace_name"></a> [workspace\_name](#output\_workspace\_name) | The Terraform Cloud workspace name |
 <!-- END_TF_DOCS -->

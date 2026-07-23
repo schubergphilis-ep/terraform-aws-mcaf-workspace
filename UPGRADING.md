@@ -2,6 +2,36 @@
 
 This document captures required refactoring on your part when upgrading to a module version that contains breaking changes.
 
+## Upgrading to v5.0.0
+
+This release drops support for every authentication method except OIDC. The module now always provisions an IAM role that Terraform Cloud assumes via OIDC workload identity.
+
+> [!IMPORTANT]
+> Upgrade to any **v4.x.x** release before upgrading to **v5.x.x**. The `moved` blocks in v5 assume your state already matches the v4 layout. Skipping v4 causes the `moved` statements to overlap, which forces Terraform to destroy and recreate the authentication resources instead of migrating them in place.
+
+### Variables (v5.0.0)
+
+The following variables have been **removed**:
+
+- `auth_method` — OIDC is now the only supported method, so there is nothing to choose.
+- `username` — only used by the removed `iam_user` method.
+- `agent_role_arns` — only used by the removed static-credential `iam_role` method.
+
+If you previously set `auth_method = "iam_user"` or `auth_method = "iam_role"`, switch to OIDC by configuring `oidc_settings`. Note that `oidc_settings` is now required whenever `enable_authentication = true`.
+
+### Outputs (v5.0.0)
+
+The following outputs have been **removed**:
+
+- `arn` — the IAM user ARN.
+- `iam_user_arn` — the IAM user ARN.
+
+The following output has been **renamed**:
+
+- `iam_role_oidc_arn` -> `iam_role_arn`
+
+The previous `iam_role_arn` output (the static-credential `iam_role` ARN) no longer exists. `iam_role_arn` now returns the ARN of the OIDC role, so consumers that referenced `iam_role_oidc_arn` must switch to `iam_role_arn`.
+
 ## Upgrading to v4.0.0
 
 ### Variables (v4.0.0)
