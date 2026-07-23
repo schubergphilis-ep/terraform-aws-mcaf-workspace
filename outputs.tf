@@ -1,6 +1,11 @@
 output "iam_role_arn" {
-  description = "ARN of the IAM role"
-  value       = try(module.auth[0].iam_role_arn, null)
+  description = "ARN of the run-phase IAM role, or null when no run role is created"
+  value       = try(module.auth[0].iam_role_arns["run"], null)
+}
+
+output "iam_role_arns" {
+  description = "Map of run phase (run/plan/apply) to the ARN of the created IAM role"
+  value       = try(module.auth[0].iam_role_arns, {})
 }
 
 output "workspace_name" {

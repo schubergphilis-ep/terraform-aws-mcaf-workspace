@@ -2,6 +2,103 @@
 
 This document captures required refactoring on your part when upgrading to a module version that contains breaking changes.
 
+## Upgrading to v6.0.0
+
+This release consolidates every authentication-related variable into a single `authentication` object and adds support for **phase-specific IAM roles** for the plan and apply run phases.
+
+> [!IMPORTANT]
+> Upgrade to v4.x.x or higher before v6. The moved blocks are cumulative and chained, so state on v4 or v5 migrates in place — nothing is destroyed or recreated. 
+> Starting below v4 is not covered by the moves.
+
+### Variables (v6.0.0)
+
+The following variables have been **removed** and folded into the new `authentication` object, which nests two sub-objects — `oidc_settings` (trust) and `role_settings` (IAM roles):
+
+- `enable_authentication` → `var.authentication.enabled`
+- `oidc_settings` (`audience`, `project_name`, `project_scope`, `provider_arn`, `site_address`) → `authentication.oidc_settings.*`
+- `path` → `authentication.role_settings.path`
+- `permissions_boundary_arn` → `authentication.role_settings.permissions_boundary_arn`
+- `policy` → `authentication.role_settings.run.policy` (and/or `plan`/`apply`)
+- `policy_arns` → `authentication.role_settings.run.policy_arns` (and/or `plan`/`apply`)
+- `postfix` → `authentication.role_settings.postfix`
+- `role_name` → `authentication.role_settings.name`
+
+`authentication` is required (it has no default), so you must configure or explicitly disable it.
+To disable authentication entirely (previously `enable_authentication = false`), set `authentication = null` or `authentication = { enabled = false }`.
+`oidc_settings` and `role_settings` are required whenever authentication is enabled.
+
+> [!IMPORTANT]
+> To keep your existing run role and `TFC_AWS_RUN_ROLE_ARN`, you **must** set `authentication.role_settings.run` explicitly (e.g. `run = {}`, or provide an `policy` or `policy_arns`).
+> If `run` is omitted, the run role and its variable are destroyed.
+
+**Before (v5.x):**
+
+```hcl
+module "workspace" {
+  source = "schubergphilis-ep/mcaf-workspace/aws"
+
+  name = "example"
+
+  oidc_settings = {
+    provider_arn = aws_iam_openid_connect_provider.tfc_provider.arn
+  }
+  policy = data.aws_iam_policy_document.pipeline.json
+}
+```
+
+**After (v6.x):**
+
+```hcl
+module "workspace" {
+  source = "schubergphilis-ep/mcaf-workspace/aws"
+
+  name = "example"
+
+  authentication = {
+    oidc_settings = {
+      provider_arn = aws_iam_openid_connect_provider.tfc_provider.arn
+    }
+    role_settings = {
+      run = { policy = data.aws_iam_policy_document.pipeline.json }
+    }
+  }
+}
+```
+
+### Phase-specific roles (v6.0.0)
+
+You can now give the plan and apply run phases their own IAM roles via `authentication.role_settings.plan` and `authentication.role_settings.apply`.
+Each, when set, creates a role whose trust policy is scoped to that single phase (`run_phase:plan` / `run_phase:apply`) and sets the matching `TFC_AWS_PLAN_ROLE_ARN` / `TFC_AWS_APPLY_ROLE_ARN` variable.
+Their names default to the shared `role_settings.name` with `Plan`/`Apply` appended.
+
+Terraform Cloud picks the role for each phase in this order:
+
+1. The phase-specific ARN — `TFC_AWS_PLAN_ROLE_ARN` for plan, `TFC_AWS_APPLY_ROLE_ARN` for apply — if it is set.
+2. Otherwise `TFC_AWS_RUN_ROLE_ARN` — the **fallback** assumed by any phase that has no dedicated role.
+
+So `run` is the catch-all role and `plan`/`apply` are optional overrides.
+Keep `run` set alongside `plan`/`apply` so every phase always resolves to a role; if you omit `run`, a phase without its own role has no credentials to assume.
+
+Recommended migration from a pre-v6 `run`-only setup — do it in three steps so the switch stays low-risk and easy to roll back:
+
+1. **Start (pre-v6):** `run` only — a single role assumed for every phase.
+2. **Introduce per-phase roles:** set `run` + `plan` + `apply`. Plan and apply now assume their own least-privilege roles, while `run` stays provisioned.
+   Because a phase only falls back to the run role when its own ARN is *absent*, `run` acts as a ready safety net:
+   if a new plan or apply role turns out to be misconfigured, remove just that block and Terraform Cloud immediately reverts that phase to the still-present run role — nothing needs to be recreated.
+3. **Finalize:** once the plan and apply roles are confirmed working, unset `run`. Only `plan` and `apply` remain and `TFC_AWS_RUN_ROLE_ARN` is removed, so each phase assumes exactly its own role.
+   (Keep `run` set instead if you want to retain a permanent fallback.)
+
+Constraints: `plan` and `apply` must be set together (both or neither), and at least one of `run`/`plan`/`apply` must be set when authentication is enabled.
+
+Set `authentication.role_settings.set_terraform_role_arn_variables = true` to also expose each role ARN as a Terraform-category workspace variable, in addition to the environment variables.
+Defaults to `false`. This is handy when the configuration itself needs to make plan-vs-apply decisions:
+with the ARNs available as Terraform variables the code can compare the current identity (e.g. `data.aws_caller_identity.current.arn`) against the known plan/apply role ARN and branch on which phase is running.
+
+### Outputs (v6.0.0)
+
+- `iam_role_arn` is unchanged in meaning: it returns the **run** role ARN (or `null` when no run role is created).
+- A new `iam_role_arns` output returns a map of run phase (`run`/`plan`/`apply`) to role ARN.
+
 ## Upgrading to v5.0.0
 
 This release drops support for every authentication method except OIDC. The module now always provisions an IAM role that Terraform Cloud assumes via OIDC workload identity.

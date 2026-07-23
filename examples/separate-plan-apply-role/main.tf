@@ -2,7 +2,7 @@ provider "aws" {
   region = "eu-west-1"
 }
 
-# If you are using this module in combination with `terraform-aws-mcaf-avm` the OIDC provider is already created. 
+# If you are using this module in combination with `terraform-aws-mcaf-avm` the OIDC provider is already created.
 data "tls_certificate" "oidc_certificate" {
   url = "https://app.terraform.io"
 }
@@ -20,7 +20,20 @@ module "workspace-example" {
   oauth_token_id         = "ot-xxxxxxxxxxxxxxxx"
   terraform_organization = "example-org"
 
-  oidc_settings = {
-    provider_arn = aws_iam_openid_connect_provider.tfc_provider.arn
+  authentication = {
+    oidc_settings = {
+      provider_arn = aws_iam_openid_connect_provider.tfc_provider.arn
+    }
+
+    role_settings = {
+      # Read-only role scoped to the plan phase.
+      plan = {
+        policy_arns = ["arn:aws:iam::aws:policy/ReadOnlyAccess"]
+      }
+      # Write role scoped to the apply phase.
+      apply = {
+        policy_arns = ["arn:aws:iam::aws:policy/AdministratorAccess"]
+      }
+    }
   }
 }
