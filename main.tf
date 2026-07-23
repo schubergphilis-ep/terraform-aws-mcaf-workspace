@@ -1,9 +1,3 @@
-locals {
-  oidc_project_filter   = try(var.oidc_settings.project_scope, false) ? var.oidc_settings.project_name : "*"
-  oidc_workspace_filter = !try(var.oidc_settings.project_scope, false) ? var.name : "*"
-  role_name             = coalesce(var.role_name, "TFEPipeline${replace(title(var.name), "/[_-]/", "")}")
-}
-
 ################################################################################
 # Workspace
 ################################################################################
@@ -88,25 +82,31 @@ resource "tfe_team_access" "default" {
 ################################################################################
 
 module "auth" {
-  count = var.enable_authentication ? 1 : 0
+  count = var.authentication != null && var.authentication.enabled ? 1 : 0
 
   source = "./modules/auth"
 
-  path                     = var.path
-  permissions_boundary_arn = var.permissions_boundary_arn
-  policy                   = var.policy
-  policy_arns              = var.policy_arns
-  postfix                  = var.postfix
-  role_name                = local.role_name
-  tags                     = var.tags
-  terraform_organization   = var.terraform_organization
-  workspace_id             = module.tfe-workspace.workspace_id
+  set_terraform_role_arn_variables = var.authentication.role_settings.set_terraform_role_arn_variables
+  tags                             = var.tags
+  terraform_organization           = var.terraform_organization
+  workspace_id                     = module.tfe-workspace.workspace_id
 
-  oidc_settings = var.oidc_settings != null ? {
-    audience              = var.oidc_settings.audience
-    oidc_project_filter   = local.oidc_project_filter
-    oidc_workspace_filter = local.oidc_workspace_filter
-    provider_arn          = var.oidc_settings.provider_arn
-    site_address          = var.oidc_settings.site_address
-  } : null
+  oidc_settings = {
+    audience       = var.authentication.oidc_settings.audience
+    project_name   = var.authentication.oidc_settings.project_name
+    project_scope  = var.authentication.oidc_settings.project_scope
+    provider_arn   = var.authentication.oidc_settings.provider_arn
+    site_address   = var.authentication.oidc_settings.site_address
+    workspace_name = var.name
+  }
+
+  role_settings = {
+    apply                    = var.authentication.role_settings.apply
+    name                     = coalesce(var.authentication.role_settings.name, "TFEPipeline${replace(title(var.name), "/[_-]/", "")}")
+    path                     = var.authentication.role_settings.path
+    permissions_boundary_arn = var.authentication.role_settings.permissions_boundary_arn
+    plan                     = var.authentication.role_settings.plan
+    postfix                  = var.authentication.role_settings.postfix
+    run                      = var.authentication.role_settings.run
+  }
 }
