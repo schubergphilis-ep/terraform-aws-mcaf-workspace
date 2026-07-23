@@ -1,6 +1,6 @@
 data "tfe_organization" "default" {}
 
-module "workspace_iam_role_oidc" {
+module "workspace_iam_role" {
   source  = "schubergphilis-ep/mcaf-role/aws"
   version = "~> 0.5.3"
 
@@ -32,7 +32,7 @@ resource "tfe_variable" "tfc_aws_provider_auth" {
 
 resource "tfe_variable" "tfc_aws_run_role_arn" {
   key             = "TFC_AWS_RUN_ROLE_ARN"
-  value           = module.workspace_iam_role_oidc.arn
+  value           = module.workspace_iam_role.arn
   category        = "env"
   variable_set_id = var.variable_set_id
   workspace_id    = var.workspace_id

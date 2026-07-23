@@ -6,6 +6,9 @@ This document captures required refactoring on your part when upgrading to a mod
 
 This release drops support for every authentication method except OIDC. The module now always provisions an IAM role that Terraform Cloud assumes via OIDC workload identity.
 
+> [!IMPORTANT]
+> Upgrade to any **v4.x.x** release before upgrading to **v5.x.x**. The `moved` blocks in v5 assume your state already matches the v4 layout. Skipping v4 causes the `moved` statements to overlap, which forces Terraform to destroy and recreate the authentication resources instead of migrating them in place.
+
 ### Variables (v5.0.0)
 
 The following variables have been **removed**:
