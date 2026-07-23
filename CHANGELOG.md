@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.0.0](https://github.com/schubergphilis-ep/terraform-aws-mcaf-workspace/compare/v4.1.2...v5.0.0) (2026-07-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* only support OIDC authentication ([#4](https://github.com/schubergphilis-ep/terraform-aws-mcaf-workspace/issues/4))
+
+### 🚀 Features
+
+* only support OIDC authentication ([#4](https://github.com/schubergphilis-ep/terraform-aws-mcaf-workspace/issues/4)) ([b379a2a](https://github.com/schubergphilis-ep/terraform-aws-mcaf-workspace/commit/b379a2ac1227179d3f49f0e639be8d5deda0fef8))
+
 ## [4.1.2](https://github.com/schubergphilis-ep/terraform-aws-mcaf-workspace/compare/v4.1.1...v4.1.2) (2026-07-07)
 
 
