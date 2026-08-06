@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [6.0.0](https://github.com/schubergphilis-ep/terraform-aws-mcaf-workspace/compare/v5.0.0...v6.0.0) (2026-08-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* phase-specific plan/apply IAM roles and unified authentication object ([#7](https://github.com/schubergphilis-ep/terraform-aws-mcaf-workspace/issues/7))
+
+### 🚀 Features
+
+* phase-specific plan/apply IAM roles and unified authentication object ([#7](https://github.com/schubergphilis-ep/terraform-aws-mcaf-workspace/issues/7)) ([42886bf](https://github.com/schubergphilis-ep/terraform-aws-mcaf-workspace/commit/42886bfe543e036892a920dc9c1eb33e0f13b535))
+
 ## [5.0.0](https://github.com/schubergphilis-ep/terraform-aws-mcaf-workspace/compare/v4.1.2...v5.0.0) (2026-07-23)
 
 
