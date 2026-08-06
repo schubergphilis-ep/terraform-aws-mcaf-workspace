@@ -6,15 +6,32 @@ This module uses the terraform-tfe-mcaf-workspace module to create a Terraform C
 
 ### Authentication
 
-The module creates an IAM role that Terraform Cloud assumes using OIDC workload identity, configured via the `oidc_settings` variable. Benefits of using OIDC:
+The module creates one or more IAM roles that Terraform Cloud assumes using OIDC workload identity, configured via the `authentication` object. Benefits of using OIDC:
 
 - No long-lived credentials are stored or managed
 - Native integration with Terraform Cloud workload identity
 - Automatic temporary credential issuance for each run
 
+Trust settings live under `authentication.oidc_settings`; the IAM roles live under `authentication.role_settings`. Roles are defined per run phase and are each optional:
+
+- `role_settings.run` — assumed for any phase without a dedicated role. Backs `TFC_AWS_RUN_ROLE_ARN` and acts as the fallback.
+- `role_settings.plan` — assumed during the plan phase. Backs `TFC_AWS_PLAN_ROLE_ARN`.
+- `role_settings.apply` — assumed during the apply phase. Backs `TFC_AWS_APPLY_ROLE_ARN`.
+
+Terraform Cloud resolves the role for each phase in order: the phase-specific ARN (`TFC_AWS_PLAN_ROLE_ARN` for plan, `TFC_AWS_APPLY_ROLE_ARN` for apply) when set, otherwise `TFC_AWS_RUN_ROLE_ARN`.
+So `run` is the catch-all role and `plan`/`apply` are optional overrides: keep `run` set so every phase always resolves to a role, or omit it when `plan` and `apply` already cover every phase you run.
+`role_settings.name` is the shared base name that the plan and apply roles append `Plan`/`Apply` to.
+`plan` and `apply` must be set together (both or neither), and at least one of `run`/`plan`/`apply` must be set.
+
+#### Role ARN Terraform variables
+
+By default the role ARNs are set only as environment variables (which dynamic credentials require). 
+Set `role_settings.set_terraform_role_arn_variables = true` to *also* expose each role ARN as a Terraform-category workspace variable, so the configuration can read them via `var.*`. 
+This is handy when the configuration needs to make plan-vs-apply decisions: with the ARNs available as variables the code can compare the current identity (e.g. `data.aws_caller_identity.current.arn`) against the known plan/apply role ARN and branch on which phase is running.
+
 #### Disabling Authentication
 
-Authentication can be disabled by setting `enable_authentication = false`. This is useful when authentication is managed at the Terraform Cloud project level or AWS credentials are provided externally via variable sets.
+The `authentication` variable is required, so authentication must be either configured or explicitly disabled. Disable it by setting `authentication = null` or `authentication = { enabled = false }`. This is useful when authentication is managed at the Terraform Cloud project level or AWS credentials are provided externally via variable sets.
 
 ### Team access
 
@@ -85,6 +102,7 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
+| <a name="input_authentication"></a> [authentication](#input\_authentication) | AWS OIDC authentication settings. Provide `oidc_settings` and `role_settings` to configure the IAM role(s). Disable it with `enabled = false` or by setting the variable to `null`. Phase-specific plan/apply roles take precedence over the run role, which acts as a fallback if provided. `role_settings.name` is shared and defaults to "TFEPipeline" followed by a PascalCase version of the workspace `name` when null; the plan/apply roles append `Plan`/`Apply` to it. | <pre>object({<br/>    enabled = optional(bool, true)<br/><br/>    oidc_settings = optional(object({<br/>      provider_arn  = string<br/>      audience      = optional(string, "aws.workload.identity")<br/>      project_name  = optional(string)<br/>      project_scope = optional(bool, false)<br/>      site_address  = optional(string, "app.terraform.io")<br/>    }))<br/><br/>    role_settings = optional(object({<br/>      name                     = optional(string)<br/>      path                     = optional(string, "/")<br/>      permissions_boundary_arn = optional(string)<br/>      postfix                  = optional(bool, true)<br/><br/>      # Also expose each role ARN as a Terraform-category workspace variable,<br/>      # in addition to the environment variable dynamic credentials require.<br/>      set_terraform_role_arn_variables = optional(bool, false)<br/><br/>      # Per-phase role definitions. The role is created only when set.<br/>      # Phase-specific plan/apply roles take precedence over the run role, which acts as a fallback if provided.<br/>      run = optional(object({<br/>        policy      = optional(string)<br/>        policy_arns = optional(set(string), [])<br/>      }))<br/>      plan = optional(object({<br/>        policy      = optional(string)<br/>        policy_arns = optional(set(string), [])<br/>      }))<br/>      apply = optional(object({<br/>        policy      = optional(string)<br/>        policy_arns = optional(set(string), [])<br/>      }))<br/>    }))<br/>  })</pre> | n/a | yes |
 | <a name="input_name"></a> [name](#input\_name) | A name for the Terraform workspace | `string` | n/a | yes |
 | <a name="input_agent_pool_id"></a> [agent\_pool\_id](#input\_agent\_pool\_id) | Agent pool ID, requires "execution\_mode" to be set to agent | `string` | `null` | no |
 | <a name="input_allow_destroy_plan"></a> [allow\_destroy\_plan](#input\_allow\_destroy\_plan) | Whether destroy plans can be queued on the workspace | `bool` | `true` | no |
@@ -98,7 +116,6 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 | <a name="input_clear_text_hcl_variables"></a> [clear\_text\_hcl\_variables](#input\_clear\_text\_hcl\_variables) | An optional map with clear text HCL Terraform variables | `map(string)` | `{}` | no |
 | <a name="input_clear_text_terraform_variables"></a> [clear\_text\_terraform\_variables](#input\_clear\_text\_terraform\_variables) | An optional map with clear text Terraform variables | `map(string)` | `{}` | no |
 | <a name="input_description"></a> [description](#input\_description) | A description for the workspace | `string` | `null` | no |
-| <a name="input_enable_authentication"></a> [enable\_authentication](#input\_enable\_authentication) | Whether to create and configure AWS IAM credentials for the workspace to authenticate with AWS | `bool` | `true` | no |
 | <a name="input_execution_mode"></a> [execution\_mode](#input\_execution\_mode) | Which execution mode to use | `string` | `"remote"` | no |
 | <a name="input_file_triggers_enabled"></a> [file\_triggers\_enabled](#input\_file\_triggers\_enabled) | Whether to filter runs based on the changed files in a VCS push | `bool` | `true` | no |
 | <a name="input_force_delete"></a> [force\_delete](#input\_force\_delete) | If true, the workspace will be force deleted even when resources are still under management | `bool` | `false` | no |
@@ -106,18 +123,11 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 | <a name="input_global_remote_state"></a> [global\_remote\_state](#input\_global\_remote\_state) | Allow all workspaces in the organization to read the state of this workspace | `bool` | `null` | no |
 | <a name="input_notification_configuration"></a> [notification\_configuration](#input\_notification\_configuration) | Notification configuration, using name as key and config as value | <pre>map(object({<br/>    destination_type = string<br/>    enabled          = optional(bool, true)<br/>    url              = string<br/>    triggers = optional(list(string), [<br/>      "run:created",<br/>      "run:planning",<br/>      "run:needs_attention",<br/>      "run:applying",<br/>      "run:completed",<br/>      "run:errored",<br/>    ])<br/>  }))</pre> | `{}` | no |
 | <a name="input_oauth_token_id"></a> [oauth\_token\_id](#input\_oauth\_token\_id) | The OAuth token ID of the VCS provider | `string` | `null` | no |
-| <a name="input_oidc_settings"></a> [oidc\_settings](#input\_oidc\_settings) | OIDC settings to use for authentication between TFE workspace and AWS IAM role | <pre>object({<br/>    audience     = optional(string, "aws.workload.identity")<br/>    project_name = optional(string)<br/>    # Apply OIDC trust to all workspaces in the project instead of just this workspace.<br/>    # WARNING: Only enable this setting when the project relates to a single AWS Account to avoid unintended access.<br/>    project_scope = optional(bool, false)<br/>    provider_arn  = string<br/>    site_address  = optional(string, "app.terraform.io")<br/>  })</pre> | `null` | no |
-| <a name="input_path"></a> [path](#input\_path) | Path in which to create the IAM role | `string` | `"/"` | no |
-| <a name="input_permissions_boundary_arn"></a> [permissions\_boundary\_arn](#input\_permissions\_boundary\_arn) | ARN of the policy that is used to set the permissions boundary for the IAM role | `string` | `null` | no |
-| <a name="input_policy"></a> [policy](#input\_policy) | The policy to attach to the pipeline role | `string` | `null` | no |
-| <a name="input_policy_arns"></a> [policy\_arns](#input\_policy\_arns) | A set of policy ARNs to attach to the pipeline role | `set(string)` | `[]` | no |
-| <a name="input_postfix"></a> [postfix](#input\_postfix) | Whether to postfix the IAM resources with `Role` | `bool` | `true` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | ID of the TFE project where the workspace should be created | `string` | `null` | no |
 | <a name="input_queue_all_runs"></a> [queue\_all\_runs](#input\_queue\_all\_runs) | When set to false no initial run is queued and all runs triggered by a webhook will not be queued, necessary if you need to set variable sets after creation. | `bool` | `true` | no |
 | <a name="input_region"></a> [region](#input\_region) | The default region of the account | `string` | `null` | no |
 | <a name="input_remote_state_consumer_ids"></a> [remote\_state\_consumer\_ids](#input\_remote\_state\_consumer\_ids) | A set of workspace IDs set as explicit remote state consumers for this workspace | `set(string)` | `null` | no |
 | <a name="input_repository_identifier"></a> [repository\_identifier](#input\_repository\_identifier) | The repository identifier to connect the workspace to | `string` | `null` | no |
-| <a name="input_role_name"></a> [role\_name](#input\_role\_name) | The IAM role name for a new pipeline role. Defaults to "TFEPipeline" followed by a PascalCase version of "name" when not set | `string` | `null` | no |
 | <a name="input_sensitive_env_variables"></a> [sensitive\_env\_variables](#input\_sensitive\_env\_variables) | An optional map with sensitive environment variables | `map(string)` | `{}` | no |
 | <a name="input_sensitive_hcl_variables"></a> [sensitive\_hcl\_variables](#input\_sensitive\_hcl\_variables) | An optional map with sensitive HCL Terraform variables | <pre>map(object({<br/>    sensitive = string<br/>  }))</pre> | `{}` | no |
 | <a name="input_sensitive_terraform_variables"></a> [sensitive\_terraform\_variables](#input\_sensitive\_terraform\_variables) | An optional map with sensitive Terraform variables | `map(string)` | `{}` | no |
@@ -138,7 +148,8 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 
 | Name | Description |
 |------|-------------|
-| <a name="output_iam_role_arn"></a> [iam\_role\_arn](#output\_iam\_role\_arn) | ARN of the IAM role |
+| <a name="output_iam_role_arn"></a> [iam\_role\_arn](#output\_iam\_role\_arn) | ARN of the run-phase IAM role, or null when no run role is created |
+| <a name="output_iam_role_arns"></a> [iam\_role\_arns](#output\_iam\_role\_arns) | Map of run phase (run/plan/apply) to the ARN of the created IAM role |
 | <a name="output_workspace_id"></a> [workspace\_id](#output\_workspace\_id) | The Terraform Cloud workspace ID |
 | <a name="output_workspace_name"></a> [workspace\_name](#output\_workspace\_name) | The Terraform Cloud workspace name |
 <!-- END_TF_DOCS -->

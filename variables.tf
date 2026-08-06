@@ -16,6 +16,52 @@ variable "assessments_enabled" {
   description = "Whether to regularly run health assessments such as drift detection on the workspace"
 }
 
+variable "authentication" {
+  type = object({
+    enabled = optional(bool, true)
+
+    oidc_settings = optional(object({
+      provider_arn  = string
+      audience      = optional(string, "aws.workload.identity")
+      project_name  = optional(string)
+      project_scope = optional(bool, false)
+      site_address  = optional(string, "app.terraform.io")
+    }))
+
+    role_settings = optional(object({
+      name                     = optional(string)
+      path                     = optional(string, "/")
+      permissions_boundary_arn = optional(string)
+      postfix                  = optional(bool, true)
+
+      # Also expose each role ARN as a Terraform-category workspace variable,
+      # in addition to the environment variable dynamic credentials require.
+      set_terraform_role_arn_variables = optional(bool, false)
+
+      # Per-phase role definitions. The role is created only when set.
+      # Phase-specific plan/apply roles take precedence over the run role, which acts as a fallback if provided.
+      run = optional(object({
+        policy      = optional(string)
+        policy_arns = optional(set(string), [])
+      }))
+      plan = optional(object({
+        policy      = optional(string)
+        policy_arns = optional(set(string), [])
+      }))
+      apply = optional(object({
+        policy      = optional(string)
+        policy_arns = optional(set(string), [])
+      }))
+    }))
+  })
+  description = "AWS OIDC authentication settings. Provide `oidc_settings` and `role_settings` to configure the IAM role(s). Disable it with `enabled = false` or by setting the variable to `null`. Phase-specific plan/apply roles take precedence over the run role, which acts as a fallback if provided. `role_settings.name` is shared and defaults to \"TFEPipeline\" followed by a PascalCase version of the workspace `name` when null; the plan/apply roles append `Plan`/`Apply` to it."
+
+  validation {
+    condition     = var.authentication == null || !var.authentication.enabled || (var.authentication.oidc_settings != null && var.authentication.role_settings != null)
+    error_message = "\"oidc_settings\" and \"role_settings\" are required when authentication is enabled."
+  }
+}
+
 variable "auto_apply" {
   type        = bool
   default     = false
@@ -68,12 +114,6 @@ variable "description" {
   type        = string
   default     = null
   description = "A description for the workspace"
-}
-
-variable "enable_authentication" {
-  type        = bool
-  default     = true
-  description = "Whether to create and configure AWS IAM credentials for the workspace to authenticate with AWS"
 }
 
 variable "execution_mode" {
@@ -146,60 +186,6 @@ variable "oauth_token_id" {
   description = "The OAuth token ID of the VCS provider"
 }
 
-variable "oidc_settings" {
-  type = object({
-    audience     = optional(string, "aws.workload.identity")
-    project_name = optional(string)
-    # Apply OIDC trust to all workspaces in the project instead of just this workspace.
-    # WARNING: Only enable this setting when the project relates to a single AWS Account to avoid unintended access.
-    project_scope = optional(bool, false)
-    provider_arn  = string
-    site_address  = optional(string, "app.terraform.io")
-  })
-  default     = null
-  description = "OIDC settings to use for authentication between TFE workspace and AWS IAM role"
-
-  validation {
-    condition     = var.oidc_settings == null || !var.oidc_settings.project_scope || var.oidc_settings.project_name != null
-    error_message = "\"project_name\" must be set in \"oidc_settings\" when \"project_scope\" is enabled."
-  }
-
-  validation {
-    condition     = !var.enable_authentication || var.oidc_settings != null
-    error_message = "\"oidc_settings\" must be set when \"enable_authentication\" is enabled."
-  }
-}
-
-variable "path" {
-  type        = string
-  default     = "/"
-  description = "Path in which to create the IAM role"
-}
-
-variable "permissions_boundary_arn" {
-  type        = string
-  default     = null
-  description = "ARN of the policy that is used to set the permissions boundary for the IAM role"
-}
-
-variable "policy" {
-  type        = string
-  default     = null
-  description = "The policy to attach to the pipeline role"
-}
-
-variable "policy_arns" {
-  type        = set(string)
-  default     = []
-  description = "A set of policy ARNs to attach to the pipeline role"
-}
-
-variable "postfix" {
-  type        = bool
-  default     = true
-  description = "Whether to postfix the IAM resources with `Role`"
-}
-
 variable "project_id" {
   type        = string
   default     = null
@@ -228,12 +214,6 @@ variable "repository_identifier" {
   type        = string
   default     = null
   description = "The repository identifier to connect the workspace to"
-}
-
-variable "role_name" {
-  type        = string
-  default     = null
-  description = "The IAM role name for a new pipeline role. Defaults to \"TFEPipeline\" followed by a PascalCase version of \"name\" when not set"
 }
 
 variable "sensitive_env_variables" {
