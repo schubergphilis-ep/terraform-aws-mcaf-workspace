@@ -2,7 +2,6 @@ mock_provider "aws" {}
 mock_provider "random" {}
 
 mock_provider "tfe" {
-  # The teams that exist in the mocked organization.
   mock_data "tfe_teams" {
     defaults = {
       ids = {
