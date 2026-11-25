@@ -68,6 +68,19 @@ team_access = {
 
 The above custom role is similar to the "write" pre-existing role, but blocks access to the workspace state (which is considered sensitive).
 
+A team is looked up by name, so it has to exist before the plan starts. A team that is created in the same run as the workspace does not exist yet at that point. Pass the ID of such a team with `team_id` to skip the lookup:
+
+```hcl
+team_access = {
+  "MyTeamName" = {
+    access  = "write"
+    team_id = tfe_team.example.id
+  }
+}
+```
+
+See the [team-access example](examples/team-access).
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -96,7 +109,7 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 | Name | Type |
 |------|------|
 | [tfe_team_access.default](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/resources/team_access) | resource |
-| [tfe_team.default](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/data-sources/team) | data source |
+| [tfe_teams.default](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs/data-sources/teams) | data source |
 
 ## Inputs
 
@@ -134,7 +147,7 @@ The above custom role is similar to the "write" pre-existing role, but blocks ac
 | <a name="input_speculative_enabled"></a> [speculative\_enabled](#input\_speculative\_enabled) | Enables or disables speculative plans on PR/MR, enabled by default | `bool` | `true` | no |
 | <a name="input_ssh_key_id"></a> [ssh\_key\_id](#input\_ssh\_key\_id) | The SSH key ID to assign to the workspace | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | A mapping of tags to assign to resource | `map(string)` | `null` | no |
-| <a name="input_team_access"></a> [team\_access](#input\_team\_access) | Map of team names and either type of fixed access or custom permissions to assign | <pre>map(object({<br/>    access = optional(string, null),<br/>    permissions = optional(object({<br/>      run_tasks         = bool<br/>      runs              = string<br/>      sentinel_mocks    = string<br/>      state_versions    = string<br/>      variables         = string<br/>      workspace_locking = bool<br/>    }), null)<br/>  }))</pre> | `{}` | no |
+| <a name="input_team_access"></a> [team\_access](#input\_team\_access) | Map of team names and either type of fixed access or custom permissions to assign. Set `team_id` to skip the lookup of the team by name, which is needed when the team is created in the same run | <pre>map(object({<br/>    access  = optional(string, null)<br/>    team_id = optional(string, null)<br/><br/>    permissions = optional(object({<br/>      run_tasks         = bool<br/>      runs              = string<br/>      sentinel_mocks    = string<br/>      state_versions    = string<br/>      variables         = string<br/>      workspace_locking = bool<br/>    }), null)<br/>  }))</pre> | `{}` | no |
 | <a name="input_terraform_organization"></a> [terraform\_organization](#input\_terraform\_organization) | The Terraform Enterprise organization to create the workspace in. If omitted, organization must be defined in the provider config. | `string` | `null` | no |
 | <a name="input_terraform_version"></a> [terraform\_version](#input\_terraform\_version) | The version of Terraform to use for this workspace | `string` | `"latest"` | no |
 | <a name="input_trigger_patterns"></a> [trigger\_patterns](#input\_trigger\_patterns) | List of glob patterns that describe the files Terraform Cloud monitors for changes. Trigger patterns are always appended to the root directory of the repository. Mutually exclusive with trigger-prefixes | `list(string)` | <pre>[<br/>  "modules/**/*"<br/>]</pre> | no |

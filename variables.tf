@@ -256,7 +256,9 @@ variable "tags" {
 
 variable "team_access" {
   type = map(object({
-    access = optional(string, null),
+    access  = optional(string, null)
+    team_id = optional(string, null)
+
     permissions = optional(object({
       run_tasks         = bool
       runs              = string
@@ -267,7 +269,7 @@ variable "team_access" {
     }), null)
   }))
   default     = {}
-  description = "Map of team names and either type of fixed access or custom permissions to assign"
+  description = "Map of team names and either type of fixed access or custom permissions to assign. Set `team_id` to skip the lookup of the team by name, which is needed when the team is created in the same run"
   nullable    = false
 
   validation {
