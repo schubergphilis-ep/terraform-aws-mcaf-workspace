@@ -265,9 +265,10 @@ variable "team_access" {
       variables         = string
       workspace_locking = bool
     }), null)
+    team_id = optional(string, null)
   }))
   default     = {}
-  description = "Map of team names and either type of fixed access or custom permissions to assign"
+  description = "Map of team names and either type of fixed access or custom permissions to assign. Set `team_id` to skip the lookup of the team by name, which is needed when the team is created in the same run"
   nullable    = false
 
   validation {

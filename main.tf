@@ -49,10 +49,10 @@ module "tfe-workspace" {
 # RBAC
 ################################################################################
 
-data "tfe_team" "default" {
-  for_each = toset(keys(var.team_access))
+// Not a lookup per team: its for_each keys would depend on `team_id`, which is unknown at plan for a team created in the same run.
+data "tfe_teams" "default" {
+  count = length(var.team_access) > 0 ? 1 : 0
 
-  name         = each.value
   organization = var.terraform_organization
 }
 
@@ -60,7 +60,7 @@ resource "tfe_team_access" "default" {
   for_each = var.team_access
 
   access       = each.value.access
-  team_id      = data.tfe_team.default[each.key].id
+  team_id      = each.value.team_id != null ? each.value.team_id : lookup(data.tfe_teams.default[0].ids, each.key, null)
   workspace_id = module.tfe-workspace.workspace_id
 
   dynamic "permissions" {
@@ -73,6 +73,13 @@ resource "tfe_team_access" "default" {
       state_versions    = each.value.permissions["state_versions"]
       variables         = each.value.permissions["variables"]
       workspace_locking = each.value.permissions["workspace_locking"]
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = each.value.team_id != null || contains(keys(data.tfe_teams.default[0].ids), each.key)
+      error_message = "Team \"${each.key}\" was not found in the organization. Set team_access[\"${each.key}\"].team_id when the team is created in the same run."
     }
   }
 }
